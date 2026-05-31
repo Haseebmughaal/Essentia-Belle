@@ -39,6 +39,9 @@ export default function Navbar() {
             <Link to="/shop" className="text-sm font-medium hover:text-secondary transition-colors">Shop</Link>
             <Link to="/scent-finder" className="text-sm font-medium hover:text-secondary transition-colors">Scent Finder</Link>
             <Link to="/custom-blend" className="text-sm font-medium hover:text-secondary transition-colors">Custom Blend</Link>
+            <Link to="/admin" className="text-sm font-semibold text-secondary hover:underline flex items-center gap-1.5 transition-colors">
+              <Lock className="w-3.5 h-3.5" /> Admin
+            </Link>
           </div>
 
           {/* Desktop Tools */}
@@ -111,6 +114,9 @@ export default function Navbar() {
                 <Link to="/about" onClick={() => setIsMenuOpen(false)} className="text-lg font-medium">About</Link>
                 <Link to="/contact" onClick={() => setIsMenuOpen(false)} className="text-lg font-medium">Contact</Link>
                 <Link to="/auth" onClick={() => setIsMenuOpen(false)} className="text-lg font-medium">My Account</Link>
+                <Link to="/admin" onClick={() => setIsMenuOpen(false)} className="text-lg font-semibold text-secondary flex items-center gap-2 pt-2 border-t border-ink/5">
+                  <Lock className="w-4 h-4" /> Admin Dashboard
+                </Link>
               </div>
             </div>
           </motion.div>

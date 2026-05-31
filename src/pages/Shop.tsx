@@ -24,7 +24,7 @@ export default function Shop() {
     setSearch(searchFromUrl);
     setCategory(categoryFromUrl);
   }, [searchFromUrl, categoryFromUrl]);
-  const [maxPrice, setMaxPrice] = useState(50000);
+  const [maxPrice, setMaxPrice] = useState(200);
   const [sortBy, setSortBy] = useState('featured');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
 

@@ -5,8 +5,11 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+import fs from 'fs';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const DEFAULTS_FILE = path.join(__dirname, 'defaults-snapshot.json');
 
 const db = new Database('boutique.db');
 
@@ -27,6 +30,7 @@ db.exec(`
     is_featured INTEGER DEFAULT 0
   )
 `);
+db.exec('DELETE FROM products');
 
 async function startServer() {
   const app = express();
@@ -101,6 +105,88 @@ async function startServer() {
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: 'Failed to clear products' });
+    }
+  });
+
+  // Admin Snapshot Routes
+  app.post('/api/admin/snapshot', (req, res) => {
+    try {
+      const products = db.prepare('SELECT * FROM products').all();
+      fs.writeFileSync(DEFAULTS_FILE, JSON.stringify(products, null, 2));
+      res.json({ success: true, message: 'Current inventory saved as the new default!' });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: 'Failed to save snapshot' });
+    }
+  });
+
+  app.post('/api/admin/restore-snapshot', (req, res) => {
+    try {
+      if (!fs.existsSync(DEFAULTS_FILE)) {
+        return res.status(404).json({ error: 'No snapshot found. Please save a snapshot first.' });
+      }
+      
+      const raw = fs.readFileSync(DEFAULTS_FILE, 'utf8');
+      const products = JSON.parse(raw);
+      
+      db.prepare('DELETE FROM products').run();
+      const insert = db.prepare(`
+        INSERT INTO products (id, name, brand, price, rating, category, description, image, notes_top, notes_middle, notes_base, is_featured)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      
+      const transaction = db.transaction((items) => {
+        for (const p of items) {
+          insert.run(p.id, p.name, p.brand, p.price, p.rating, p.category, p.description, p.image, p.notes_top, p.notes_middle, p.notes_base, p.is_featured);
+        }
+      });
+      
+      transaction(products);
+      res.json({ success: true });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: 'Failed to restore snapshot' });
+    }
+  });
+
+  // Admin Snapshot Routes
+  app.post('/api/admin/snapshot', (req, res) => {
+    try {
+      const products = db.prepare('SELECT * FROM products').all();
+      fs.writeFileSync(DEFAULTS_FILE, JSON.stringify(products, null, 2));
+      res.json({ success: true, message: 'Current inventory saved as the new default!' });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: 'Failed to save snapshot' });
+    }
+  });
+
+  app.post('/api/admin/restore-snapshot', (req, res) => {
+    try {
+      if (!fs.existsSync(DEFAULTS_FILE)) {
+        return res.status(404).json({ error: 'No snapshot found. Please save a snapshot first.' });
+      }
+      
+      const raw = fs.readFileSync(DEFAULTS_FILE, 'utf8');
+      const products = JSON.parse(raw);
+      
+      db.prepare('DELETE FROM products').run();
+      const insert = db.prepare(`
+        INSERT INTO products (id, name, brand, price, rating, category, description, image, notes_top, notes_middle, notes_base, is_featured)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      
+      const transaction = db.transaction((items) => {
+        for (const p of items) {
+          insert.run(p.id, p.name, p.brand, p.price, p.rating, p.category, p.description, p.image, p.notes_top, p.notes_middle, p.notes_base, p.is_featured);
+        }
+      });
+      
+      transaction(products);
+      res.json({ success: true });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: 'Failed to restore snapshot' });
     }
   });
 

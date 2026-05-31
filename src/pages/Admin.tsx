@@ -5,12 +5,12 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, Trash2, RefreshCw, Save, Image as ImageIcon, Tag, Star, Package, Type, Info, Layers, Lock, LogOut, Key, Edit, Upload, X } from 'lucide-react';
+import { Plus, Trash2, RefreshCw, Save, Image as ImageIcon, Tag, Star, Package, Type, Info, Layers, Lock, LogOut, Key, Edit, Upload, X, Camera } from 'lucide-react';
 import { useProducts } from '../ProductContext';
 import { Product } from '../types';
 
 export default function Admin() {
-  const { products, addProduct, deleteProduct, updateProduct, clearAll, resetToStarter } = useProducts();
+  const { products, addProduct, deleteProduct, updateProduct, clearAll, resetToStarter, saveAsDefault } = useProducts();
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -20,7 +20,7 @@ export default function Admin() {
   const [passwordInput, setPasswordInput] = useState('');
   const [authError, setAuthError] = useState(false);
   
-  const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || 'aura_admin_access';
+  const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || 'Admin123';
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -203,6 +203,15 @@ export default function Admin() {
           >
             <Plus className="w-5 h-5" />
             <span>Add New Scent</span>
+          </button>
+
+          <button 
+            onClick={saveAsDefault}
+            className="px-6 py-3 bg-bg-soft text-ink rounded-full border border-ink/10 hover:bg-white transition-all text-sm font-bold uppercase tracking-widest flex items-center space-x-2 shadow-sm"
+            title="Saves current inventory as the future 'Restore' point"
+          >
+            <Camera className="w-4 h-4 text-secondary" />
+            <span>Save as Default</span>
           </button>
           
           <div className="relative">

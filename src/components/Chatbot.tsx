@@ -6,10 +6,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MessageCircle, X, Send, Sparkles, User, Bot, Loader2 } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { useProducts } from '../ProductContext';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 type Message = {
   id: string;
@@ -56,32 +56,42 @@ export default function Chatbot() {
         `NAME: ${p.name}\nBRAND: ${p.brand}\nPRICE: Rs. ${p.price.toLocaleString()}\nCATEGORY: ${p.category}\nNOTES: Top (${p.notes.top.join(', ')}), Heart (${p.notes.middle.join(', ')}), Base (${p.notes.base.join(', ')})\nDESCRIPTION: ${p.description}\n---`
       ).join('\n');
       
-      const response = await ai.models.generateContent({
+      const model = genAI.getGenerativeModel({ 
         model: "gemini-2.0-flash",
-        contents: [
-          { role: 'user', parts: [{ text: input }] }
-        ],
-        config: {
-          systemInstruction: `You are Essentia, the premier AI fragrance consultant for 'Essentia Belle' boutique. Your goal is to guide customers to their perfect luxury scent with sophistication and deep perfume knowledge.
+        systemInstruction: `You are Essentia, the premier AI fragrance consultant for 'Essentia Belle' boutique. Your goal is to guide customers to their perfect luxury scent with sophistication and deep perfume knowledge.
 
-CRITICAL RULES:
+STRICT RESPONSE RULES:
+1. BREVITY: Keep answers extremely short and to the point. Avoid long paragraphs.
+2. FORMATTING: Use "point-to-point" style. Use bullet points for any list or recommendation.
+3. PERSONALIZATION: When a user mentions a mood or occasion, provide a direct recommendation from our collection with a quick 1-sentence reason.
+
+CRITICAL CONSTRAINTS:
 1. CURRENCY: Always use Pakistani Rupees (Rs.) when mentioning prices.
-2. COLLECTION KNOWLEDGE: Use ONLY the following list of perfumes available in our boutique. If a user asks for something we don't have, politely steer them toward our closest matches.
-3. PERSONALIZATION: When a user mentions a mood, occasion (e.g., office, wedding), or favorite notes (e.g., lavender, musk), provide a detailed recommendation from our collection, explaining WHY it matches their request.
-4. TONE: Be elegant, helpful, and professional. Use "we" as you are part of the Essentia team.
-5. STORE INFO: You are the digital representative of the "Essentia Belle Boutique". We offer luxury artisanal scents and bespoke laboratory blending services.
+2. COLLECTION KNOWLEDGE: Use ONLY the following list of perfumes. If a user asks for something we don't have, politely steer them to our closest matches.
+3. TONE: Elegant, helpful, and professional but concise.
+4. STORE INFO: You represent "Essentia Belle Boutique".
 
 OUR CURRENT COLLECTION:
 ${productContext}
 
 When recommending a product, ALWAYS mention its full name and price in Rs.`
+      });
+
+      const result = await model.generateContent({
+        contents: [
+          { role: 'user', parts: [{ text: input }] }
+        ],
+        generationConfig: {
+          maxOutputTokens: 500,
         }
       });
+
+      const responseText = result.response.text();
 
       const modelMessage: Message = { 
         id: (Date.now() + 1).toString(), 
         role: 'model', 
-        text: response.text || "I'm sorry, I'm having trouble connecting right now. Please try again later." 
+        text: responseText || "I'm sorry, I'm having trouble connecting right now. Please try again later." 
       };
       setMessages(prev => [...prev, modelMessage]);
     } catch (error: any) {
