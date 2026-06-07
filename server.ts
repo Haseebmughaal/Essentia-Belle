@@ -5,15 +5,11 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import fs from 'fs';
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const DEFAULTS_FILE = path.join(__dirname, 'defaults-snapshot.json');
 
 const db = new Database('boutique.db');
 
-// Initialize Database
 db.exec(`
   CREATE TABLE IF NOT EXISTS products (
     id TEXT PRIMARY KEY,
@@ -30,12 +26,12 @@ db.exec(`
     is_featured INTEGER DEFAULT 0
   )
 `);
-db.exec('DELETE FROM products');
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000; // ✅ Fixed port
 
+  // Middleware first
   app.use(cors());
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -44,7 +40,6 @@ async function startServer() {
   app.get('/api/products', (req, res) => {
     try {
       const products = db.prepare('SELECT * FROM products').all();
-      // Parse notes back into arrays
       const formatted = products.map((p: any) => ({
         ...p,
         notes: {
@@ -71,13 +66,8 @@ async function startServer() {
       `);
       stmt.run(
         p.id || Date.now().toString(),
-        p.name,
-        p.brand,
-        p.price,
-        p.rating,
-        p.category,
-        p.description,
-        p.image,
+        p.name, p.brand, p.price, p.rating,
+        p.category, p.description, p.image,
         p.notes.top.join(','),
         p.notes.middle.join(','),
         p.notes.base.join(','),
@@ -108,89 +98,7 @@ async function startServer() {
     }
   });
 
-  // Admin Snapshot Routes
-  app.post('/api/admin/snapshot', (req, res) => {
-    try {
-      const products = db.prepare('SELECT * FROM products').all();
-      fs.writeFileSync(DEFAULTS_FILE, JSON.stringify(products, null, 2));
-      res.json({ success: true, message: 'Current inventory saved as the new default!' });
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: 'Failed to save snapshot' });
-    }
-  });
-
-  app.post('/api/admin/restore-snapshot', (req, res) => {
-    try {
-      if (!fs.existsSync(DEFAULTS_FILE)) {
-        return res.status(404).json({ error: 'No snapshot found. Please save a snapshot first.' });
-      }
-      
-      const raw = fs.readFileSync(DEFAULTS_FILE, 'utf8');
-      const products = JSON.parse(raw);
-      
-      db.prepare('DELETE FROM products').run();
-      const insert = db.prepare(`
-        INSERT INTO products (id, name, brand, price, rating, category, description, image, notes_top, notes_middle, notes_base, is_featured)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `);
-      
-      const transaction = db.transaction((items) => {
-        for (const p of items) {
-          insert.run(p.id, p.name, p.brand, p.price, p.rating, p.category, p.description, p.image, p.notes_top, p.notes_middle, p.notes_base, p.is_featured);
-        }
-      });
-      
-      transaction(products);
-      res.json({ success: true });
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: 'Failed to restore snapshot' });
-    }
-  });
-
-  // Admin Snapshot Routes
-  app.post('/api/admin/snapshot', (req, res) => {
-    try {
-      const products = db.prepare('SELECT * FROM products').all();
-      fs.writeFileSync(DEFAULTS_FILE, JSON.stringify(products, null, 2));
-      res.json({ success: true, message: 'Current inventory saved as the new default!' });
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: 'Failed to save snapshot' });
-    }
-  });
-
-  app.post('/api/admin/restore-snapshot', (req, res) => {
-    try {
-      if (!fs.existsSync(DEFAULTS_FILE)) {
-        return res.status(404).json({ error: 'No snapshot found. Please save a snapshot first.' });
-      }
-      
-      const raw = fs.readFileSync(DEFAULTS_FILE, 'utf8');
-      const products = JSON.parse(raw);
-      
-      db.prepare('DELETE FROM products').run();
-      const insert = db.prepare(`
-        INSERT INTO products (id, name, brand, price, rating, category, description, image, notes_top, notes_middle, notes_base, is_featured)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `);
-      
-      const transaction = db.transaction((items) => {
-        for (const p of items) {
-          insert.run(p.id, p.name, p.brand, p.price, p.rating, p.category, p.description, p.image, p.notes_top, p.notes_middle, p.notes_base, p.is_featured);
-        }
-      });
-      
-      transaction(products);
-      res.json({ success: true });
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: 'Failed to restore snapshot' });
-    }
-  });
-
-  // Vite middleware for development
+  // Vite / Static files
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -205,6 +113,7 @@ async function startServer() {
     });
   }
 
+  // ✅ app.listen ONCE at the very end
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
