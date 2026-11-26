@@ -1,3 +1,90 @@
+pipeline {
+    agent {
+        node {
+            label 'built-in'
+            customWorkspace 'F:/JenkinsAssignment/Workspace'
+        }
+    }
+
+    options {
+        disableConcurrentBuilds()
+        skipDefaultCheckout()
+        timeout(time: 10, unit: 'MINUTES')
+    }
+
+    triggers {
+        pollSCM('* * * * *')
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                bat 'npx --yes npm@12.2.3 ci --no-progress'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                bat 'npm run build'
+            }
+        }
+
+        stage('Test') {
+            steps {
+                bat 'npm run lint'
+
+                powershell '''
+                    $env:PORT = "3001"
+                    $env:NODE_ENV = "production"
+                    $env:TEST_URL = "http://127.0.0.1:3001"
+
+                    $server = Start-Process -FilePath "node.exe" -ArgumentList "--import", "tsx", "server.ts" -PassThru -NoNewWindow
+
+                    try {
+                        $ready = $false
+
+                        for ($i = 0; $i -lt 15; $i++) {
+                            if ($server.HasExited) {
+                                throw "Test server stopped unexpectedly"
+                            }
+
+                            node -e "fetch(process.env.TEST_URL, {signal: AbortSignal.timeout(2000)}).then(r => {if (!r.ok) process.exit(1)}).catch(() => process.exit(1))"
+
+                            if ($LASTEXITCODE -eq 0) {
+                                $ready = $true
+                                break
+                            }
+
+                            Start-Sleep -Seconds 2
+                        }
+
+                        if (-not $ready) {
+                            throw "Test server readiness check failed"
+                        }
+
+                        Write-Host "Test server is ready"
+
+                        npm.cmd test
+
+                        if ($LASTEXITCODE -ne 0) {
+                            throw "Automated tests failed"
+                        }
+                    }
+                    finally {
+                        if (-not $server.HasExited) {
+                            Stop-Process -Id $server.Id -Force
+                        }
+                    }
+                '''
+            }
+        }
+
         stage('Deploy') {
             steps {
                 powershell '''
@@ -5,6 +92,8 @@
 
                     $deploy = "F:/JenkinsAssignment/Deployment"
                     $taskName = "EssentiaBelleDeployment"
+
+                    New-Item -ItemType Directory -Path $deploy -Force | Out-Null
 
                     # Stop previous deployment
                     $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
@@ -19,14 +108,14 @@
                     }
 
                     # Copy production build
-                    robocopy dist "$deploy/dist" /MIR /NFL /NDL /NJH /NJS /NP
+                    robocopy dist "$deploy/dist" /MIR /R:2 /W:2 /NFL /NDL /NJH /NJS /NP
 
                     if ($LASTEXITCODE -ge 8) {
                         throw "Production build copy failed"
                     }
 
                     # Copy dependencies
-                    robocopy node_modules "$deploy/node_modules" /MIR /NFL /NDL /NJH /NJS /NP
+                    robocopy node_modules "$deploy/node_modules" /MIR /R:2 /W:2 /NFL /NDL /NJH /NJS /NP
 
                     if ($LASTEXITCODE -ge 8) {
                         throw "Dependency copy failed"
@@ -39,32 +128,14 @@
                         Copy-Item boutique.db -Destination $deploy
                     }
 
-                    # Create production startup script
-                    @"
-@echo off
-cd /d F:/JenkinsAssignment/Deployment
-set NODE_ENV=production
-set PORT=3000
-"C:/Program Files/nodejs/node.exe" --import tsx server.ts > server.log 2>&1
-"@ | Set-Content "$deploy/start-server.cmd" -Encoding ASCII
+                    # Configure independent production server
+                    $env:NODE_ENV = "production"
 
-                    # Configure independent scheduled task
-                    $action = New-ScheduledTaskAction `
-                        -Execute "cmd.exe" `
-                        -Argument "/c F:/JenkinsAssignment/Deployment/start-server.cmd" `
-                        -WorkingDirectory $deploy
+                    $action = New-ScheduledTaskAction -Execute "C:/Windows/System32/cmd.exe" -Argument '/c "set NODE_ENV=production&& set PORT=3000&& node --import tsx server.ts > server.log 2>&1"' -WorkingDirectory $deploy
 
-                    $settings = New-ScheduledTaskSettingsSet `
-                        -ExecutionTimeLimit ([TimeSpan]::Zero) `
-                        -AllowStartIfOnBatteries `
-                        -DontStopIfGoingOnBatteries
+                    $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 
-                    Register-ScheduledTask `
-                        -TaskName $taskName `
-                        -Action $action `
-                        -Settings $settings `
-                        -User "SYSTEM" `
-                        -Force | Out-Null
+                    Register-ScheduledTask -TaskName $taskName -Action $action -Settings $settings -User "SYSTEM" -Force | Out-Null
 
                     Start-ScheduledTask -TaskName $taskName
 
@@ -95,3 +166,20 @@ set PORT=3000
                 '''
             }
         }
+    }
+
+    post {
+        success {
+            echo 'CI/CD pipeline completed successfully.'
+            echo 'Website deployed at http://localhost:3000'
+        }
+
+        failure {
+            echo 'Pipeline failed. Check the console output.'
+        }
+
+        aborted {
+            echo 'Pipeline aborted. Check the console output.'
+        }
+    }
+}
