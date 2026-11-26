@@ -1,9 +1,10 @@
 pipeline {
     agent {
-        node {
-            customWorkspace 'F:/JenkinsAssignment/Workspace'
-        }
+    node {
+        label 'built-in'
+        customWorkspace 'F:/JenkinsAssignment/Workspace'
     }
+}
 
     options {
         disableConcurrentBuilds()
