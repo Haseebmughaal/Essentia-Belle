@@ -131,7 +131,9 @@ pipeline {
                     # Configure independent production server
                     $env:NODE_ENV = "production"
 
-                    $action = New-ScheduledTaskAction -Execute "C:/Windows/System32/cmd.exe" -Argument '/c "set NODE_ENV=production&& set PORT=3000&& node --import tsx server.ts > server.log 2>&1"' -WorkingDirectory $deploy
+                    @("NODE_ENV=production", "PORT=3000") | Set-Content "$deploy/.env.production" -Encoding ASCII
+
+$action = New-ScheduledTaskAction -Execute "C:/Program Files/nodejs/node.exe" -Argument "--import tsx --env-file=.env.production server.ts" -WorkingDirectory $deploy
 
                     $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 
