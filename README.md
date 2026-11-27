@@ -59,3 +59,5 @@ npm start
 
 ## 📜 License
 Personal Use License - Created with [Google AI Studio Build](https://ai.studio/build).
+
+Jenkins CI/CD automation demonstration.
